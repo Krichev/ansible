@@ -1,0 +1,9 @@
+[environments.default]
+url = "jdbc:postgresql://challenger_postgres:5432/challenger_db"
+user = "{{ postgres_user }}"
+password = "{{ postgres_password }}"
+
+locations = ["filesystem:/flyway/sql"]
+schemas = ["public"]
+baselineOnMigrate = true
+connectRetries = 10

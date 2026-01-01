@@ -1,0 +1,29 @@
+---
+- name: Run Flyway migrations
+  hosts: db
+  become: true
+
+  tasks:
+    - name: Upload challenger migrations
+      copy:
+        src: "files/challenger_migrations/"
+        dest: "{{ migrations_root }}/challenger/"
+        owner: "{{ system_user }}"
+        group: "{{ system_user }}"
+
+    - name: Upload karaoke migrations
+      copy:
+        src: "files/karaoke_migrations/"
+        dest: "{{ migrations_root }}/karaoke/"
+        owner: "{{ system_user }}"
+        group: "{{ system_user }}"
+
+    - name: Run challenger database migrations
+      command: docker compose --profile migrate run --rm flyway
+      args:
+        chdir: "{{ project_dir }}/postgres"
+
+    - name: Run karaoke database migrations
+      command: docker compose --profile migrate run --rm flyway_karaoke
+      args:
+        chdir: "{{ project_dir }}/postgres"

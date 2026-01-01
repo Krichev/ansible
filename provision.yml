@@ -1,0 +1,135 @@
+---
+- name: Provision Postgres on rented server
+  hosts: db
+  become: true
+
+  tasks:
+    - name: Remove any old Docker repo files to avoid conflicts
+      file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - /etc/apt/sources.list.d/docker.list
+        - /etc/apt/sources.list.d/docker.sources
+
+    - name: Remove any old Docker keyring files from previous attempts
+      file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - /usr/share/keyrings/docker-archive-keyring.gpg
+        - /etc/apt/keyrings/docker.gpg
+        - /etc/apt/trusted.gpg.d/docker.gpg
+
+    - name: Install prerequisites
+      apt:
+        name:
+          - ca-certificates
+          - curl
+        state: present
+        update_cache: yes
+
+    - name: Ensure keyrings directory exists
+      file:
+        path: /etc/apt/keyrings
+        state: directory
+        mode: "0755"
+
+    - name: Add Docker GPG apt key
+      get_url:
+        url: https://download.docker.com/linux/ubuntu/gpg
+        dest: /etc/apt/keyrings/docker.asc
+        mode: a+r
+
+    - name: Add Docker official repository
+      apt_repository:
+        repo: >
+          deb [arch={{ 'amd64' if ansible_architecture == 'x86_64' else ansible_architecture }}
+          signed-by=/etc/apt/keyrings/docker.asc]
+          https://download.docker.com/linux/ubuntu {{ ansible_distribution_release }} stable
+        state: present
+        filename: docker
+
+    - name: Install Docker and related packages
+      apt:
+        name:
+          - docker-ce
+          - docker-ce-cli
+          - containerd.io
+          - docker-buildx-plugin
+          - docker-compose-plugin
+        state: present
+
+    - name: Ensure Docker service is enabled and started
+      systemd:
+        name: docker
+        enabled: true
+        state: started
+
+    - name: Ensure system user exists with home directory
+      user:
+        name: "{{ system_user }}"
+        shell: /bin/bash
+        create_home: yes
+
+    - name: Add system user to docker group
+      user:
+        name: "{{ system_user }}"
+        groups: docker
+        append: yes
+
+    - name: Create project directory
+      file:
+        path: "{{ project_dir }}/postgres"
+        state: directory
+        owner: "{{ system_user }}"
+        group: "{{ system_user }}"
+        mode: "0755"
+
+    - name: Create migrations root and subdirectories
+      file:
+        path: "{{ item }}"
+        state: directory
+        owner: "{{ system_user }}"
+        group: "{{ system_user }}"
+        mode: "0755"
+      loop:
+        - "{{ migrations_root }}"
+        - "{{ migrations_root }}/challenger"
+        - "{{ migrations_root }}/karaoke"
+
+    - name: Copy docker-compose project files
+      copy:
+        src: docker/postgres/
+        dest: "{{ project_dir }}/postgres/"
+        owner: "{{ system_user }}"
+        group: "{{ system_user }}"
+
+    - name: Deploy .env file
+      template:
+        src: env.j2
+        dest: "{{ project_dir }}/postgres/.env"
+        owner: "{{ system_user }}"
+        group: "{{ system_user }}"
+        mode: "0600"
+
+    - name: Deploy Flyway config (challenger)
+      template:
+        src: flyway.toml.j2
+        dest: "{{ project_dir }}/postgres/flyway.toml"
+        owner: "{{ system_user }}"
+        group: "{{ system_user }}"
+        mode: "0644"
+
+    - name: Deploy Flyway config (karaoke)
+      template:
+        src: flyway-karaoke.toml.j2
+        dest: "{{ project_dir }}/postgres/flyway-karaoke.toml"
+        owner: "{{ system_user }}"
+        group: "{{ system_user }}"
+        mode: "0644"
+
+    - name: Start Postgres and PgAdmin containers
+      command: docker compose up -d
+      args:
+        chdir: "{{ project_dir }}/postgres"

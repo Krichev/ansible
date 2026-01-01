@@ -1,0 +1,56 @@
+- name: Prepare migration files locally
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  vars:
+    challenger_src: "/mnt/c/Users/Alen/start/challenger_new/src/main/resources/db/migration"
+    karaoke_src: "/mnt/c/Users/Alen/start/karaoke/karaoke-rating-api/src/main/resources/db/migration"
+    challenger_dest: "files/challenger_migrations"
+    karaoke_dest: "files/karaoke_migrations"
+
+  tasks:
+    - name: Clean challenger migrations staging dir
+      file:
+        path: "{{ challenger_dest }}"
+        state: absent
+
+    - name: Clean karaoke migrations staging dir
+      file:
+        path: "{{ karaoke_dest }}"
+        state: absent
+
+    - name: Recreate staging dirs
+      file:
+        path: "{{ item }}"
+        state: directory
+        mode: '0755'
+      loop:
+        - "{{ challenger_dest }}"
+        - "{{ karaoke_dest }}"
+
+    - name: Copy challenger migrations
+      synchronize:
+        src: "{{ challenger_src }}/"
+        dest: "{{ challenger_dest }}/"
+        recursive: yes
+        delete: yes
+      delegate_to: localhost
+
+    - name: Copy karaoke migrations
+      synchronize:
+        src: "{{ karaoke_src }}/"
+        dest: "{{ karaoke_dest }}/"
+        recursive: yes
+        delete: yes
+      delegate_to: localhost
+
+    - name: Normalize SQL line endings (CRLF → LF)
+      replace:
+        path: "{{ item }}"
+        regexp: '\r$'
+        replace: ''
+      loop: "{{ 
+        lookup('fileglob', challenger_dest + '/*.sql', wantlist=True) +
+        lookup('fileglob', karaoke_dest + '/*.sql', wantlist=True)
+      }}"

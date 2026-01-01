@@ -1,0 +1,80 @@
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: challenger_postgres
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      POSTGRES_DB: challenger_db
+      POSTGRES_USER: challenger_user
+      POSTGRES_PASSWORD: challenger_password_secure_123
+      PGDATA: /var/lib/postgresql/data/pgdata
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - challenger_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U challenger_user -d challenger_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: challenger_pgadmin
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-admin@challenger.com}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:-admin123}
+      PGADMIN_CONFIG_SERVER_MODE: 'False'
+    ports:
+      - "${PGADMIN_PORT:-5050}:80"
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+    networks:
+      - challenger_network
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  flyway:
+    image: flyway/flyway:10-alpine
+    container_name: challenger_flyway
+    profiles: ["migrate"]
+    command: migrate
+    volumes:
+      - /opt/migrations/challenger:/flyway/sql:ro
+      - ./flyway.toml:/flyway/conf/flyway.toml:ro   # ← mount as the default name
+    networks:
+      - challenger_network
+    depends_on:
+      postgres:
+        condition: service_healthy
+    # FLYWAY_CONFIG_FILES is not needed since flyway.toml is mounted as the default config file
+
+  flyway_karaoke:
+    image: flyway/flyway:10-alpine
+    container_name: karaoke_flyway
+    profiles: ["migrate"]
+    command: migrate
+    volumes:
+      - /opt/migrations/karaoke:/flyway/sql:ro
+      - ./flyway-karaoke.toml:/flyway/conf/flyway.toml:ro   # ← same default name
+    networks:
+      - challenger_network
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
+    driver: local
+  pgadmin_data:
+    driver: local
+
+networks:
+  challenger_network:
+    driver: bridge

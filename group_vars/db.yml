@@ -1,0 +1,21 @@
+# Database
+postgres_db: challenger_db
+postgres_user: challenger_user
+postgres_password: challenger_password_secure_123
+postgres_port: 5432
+
+# PgAdmin
+pgadmin_email: admin@challenger.com
+pgadmin_password: admin123
+pgadmin_port: 5050
+
+# Redis
+redis_port: 6379
+
+# General
+timezone: UTC
+
+# System
+system_user: postgres
+project_dir: /opt/postgres-project
+migrations_root: /opt/migrations
