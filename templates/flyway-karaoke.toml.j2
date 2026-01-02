@@ -1,9 +1,9 @@
 [environments.default]
 url = "jdbc:postgresql://challenger_postgres:5432/karaoke_db"
-user = "{{ postgres_user }}"
-password = "{{ postgres_password }}"
+user = "karaoke_user"
+password = "{{ karaoke_db_password }}"
 
 locations = ["filesystem:/flyway/sql"]
-schemas = ["public"]
+schemas = ["karaoke"]
 baselineOnMigrate = true
 connectRetries = 10

@@ -8,11 +8,13 @@ services:
       POSTGRES_DB: challenger_db
       POSTGRES_USER: challenger_user
       POSTGRES_PASSWORD: challenger_password_secure_123
+      KARAOKE_DB_PASSWORD: ${KARAOKE_DB_PASSWORD:-karaoke_password_dev_123}
       PGDATA: /var/lib/postgresql/data/pgdata
     ports:
       - "${POSTGRES_PORT:-5432}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - ./init-scripts:/docker-entrypoint-initdb.d:ro
     networks:
       - challenger_network
     healthcheck:

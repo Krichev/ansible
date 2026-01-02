@@ -4,6 +4,9 @@ postgres_user: challenger_user
 postgres_password: challenger_password_secure_123
 postgres_port: 5432
 
+# Karaoke Database
+karaoke_db_password: karaoke_password_secure_123
+
 # PgAdmin
 pgadmin_email: admin@challenger.com
 pgadmin_password: admin123

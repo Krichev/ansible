@@ -102,6 +102,14 @@
         owner: "{{ system_user }}"
         group: "{{ system_user }}"
 
+    - name: Ensure init-scripts directory exists
+      file:
+        path: "{{ project_dir }}/postgres/init-scripts"
+        state: directory
+        owner: "{{ system_user }}"
+        group: "{{ system_user }}"
+        mode: "0755"
+
     - name: Deploy .env file
       template:
         src: env.j2
