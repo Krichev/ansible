@@ -142,8 +142,18 @@
       args:
         chdir: "{{ project_dir }}/postgres"
 
-    # Ensure karaoke_user password is correct
-    - name: Ensure karaoke_user password is correct
+    # === KARAOKE USER SETUP (Updated Logic) ===
+    - name: Check if karaoke_user exists
+      shell: |
+        docker exec challenger_postgres psql -U challenger_user -d postgres -tAc \
+          "SELECT 1 FROM pg_catalog.pg_user WHERE usename = 'karaoke_user';" || echo "0"
+      args:
+        chdir: "{{ project_dir }}/postgres"
+      register: karaoke_user_exists
+      changed_when: false
+      failed_when: false
+
+    - name: Ensure karaoke_user is properly configured
       block:
         - name: Copy karaoke user fix script
           copy:
@@ -153,7 +163,7 @@
             group: "{{ system_user }}"
             mode: "0755"
 
-        - name: Update karaoke user password (idempotent)
+        - name: Run karaoke user setup script (idempotent)
           command: bash fix-karaoke-user.sh
           args:
             chdir: "{{ project_dir }}/postgres"
@@ -161,6 +171,7 @@
             KARAOKE_DB_PASSWORD: "{{ karaoke_db_password }}"
           register: fix_result
 
-        - name: Display fix script output
+        - name: Display setup script output
           debug:
             var: fix_result.stdout_lines
+      # NOTE: Removed the "when" condition - always run to ensure correct setup

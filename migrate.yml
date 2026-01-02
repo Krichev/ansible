@@ -18,12 +18,78 @@
         owner: "{{ system_user }}"
         group: "{{ system_user }}"
 
+    # === KARAOKE USER SETUP ===
+    - name: Check if karaoke_user exists
+      shell: |
+        docker exec challenger_postgres psql -U challenger_user -d postgres -tAc \
+          "SELECT 1 FROM pg_catalog.pg_user WHERE usename = 'karaoke_user';" || echo "0"
+      args:
+        chdir: "{{ project_dir }}/postgres"
+      register: karaoke_user_exists
+      changed_when: false
+      failed_when: false
+
+    - name: Display karaoke_user status
+      debug:
+        msg: "karaoke_user {{ 'exists' if karaoke_user_exists.stdout.strip() == '1' else 'does not exist - will create' }}"
+
+    - name: Create karaoke_user and database if missing
+      shell: |
+        docker exec -i challenger_postgres \
+          psql -U challenger_user -d postgres <<'EOSQL'
+        CREATE USER karaoke_user WITH PASSWORD '{{ karaoke_db_password }}';
+        CREATE DATABASE karaoke_db
+          OWNER karaoke_user
+          ENCODING 'UTF8';
+        GRANT ALL PRIVILEGES ON DATABASE karaoke_db TO karaoke_user;
+        EOSQL
+      args:
+        chdir: "{{ project_dir }}/postgres"
+      register: user_creation_result
+      when: karaoke_user_exists.stdout.strip() != "1"
+
+    - name: Display user creation result
+      debug:
+        var: user_creation_result.stdout_lines
+      when: karaoke_user_exists.stdout.strip() != "1"
+
+    - name: Update karaoke_user password if user already exists
+      shell: |
+        docker exec challenger_postgres psql -U challenger_user -d postgres -c \
+          "ALTER USER karaoke_user WITH PASSWORD '{{ karaoke_db_password }}';"
+      args:
+        chdir: "{{ project_dir }}/postgres"
+      when: karaoke_user_exists.stdout.strip() == "1"
+      register: password_update_result
+
+    - name: Verify karaoke_user connection
+      shell: |
+        docker exec challenger_postgres psql -U karaoke_user -d karaoke_db -c \
+          "SELECT current_database(), current_user, 'Connection OK' as status;"
+      args:
+        chdir: "{{ project_dir }}/postgres"
+      register: connection_test
+      changed_when: false
+
+    - name: Display connection test result
+      debug:
+        var: connection_test.stdout_lines
+
+    # === RUN MIGRATIONS ===
     - name: Run challenger database migrations
       command: docker compose --profile migrate run --rm flyway
       args:
         chdir: "{{ project_dir }}/postgres"
+      register: challenger_migration_result
 
     - name: Run karaoke database migrations
       command: docker compose --profile migrate run --rm flyway_karaoke
       args:
         chdir: "{{ project_dir }}/postgres"
+      register: karaoke_migration_result
+
+    - name: Display migration results
+      debug:
+        msg:
+          - "Challenger migrations: {{ 'SUCCESS' if challenger_migration_result.rc == 0 else 'FAILED' }}"
+          - "Karaoke migrations: {{ 'SUCCESS' if karaoke_migration_result.rc == 0 else 'FAILED' }}"
