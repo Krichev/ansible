@@ -1,0 +1,64 @@
+---
+- name: Run Karaoke Database Migrations
+  hosts: db
+  become: true
+
+  tasks:
+    - name: Ensure Karaoke migrations directory exists
+      file:
+        path: "{{ migrations_root }}/karaoke"
+        state: directory
+        owner: "{{ system_user }}"
+        group: "{{ system_user }}"
+        mode: "0755"
+
+    - name: Upload Karaoke migration files
+      copy:
+        src: "files/karaoke_migrations/"
+        dest: "{{ migrations_root }}/karaoke/"
+        owner: "{{ system_user }}"
+        group: "{{ system_user }}"
+      register: upload_result
+
+    - name: Display upload summary
+      debug:
+        msg: "Uploaded {{ upload_result.changed | ternary('new', 'existing') }} Karaoke migrations"
+
+    - name: Check PostgreSQL health
+      command: docker exec challenger_postgres pg_isready -U karaoke_user -d karaoke_db
+      args:
+        chdir: "{{ project_dir }}/postgres"
+      register: pg_health
+      retries: 5
+      delay: 2
+      until: pg_health.rc == 0
+      changed_when: false
+
+    - name: Run Karaoke database migrations
+      command: docker compose --profile migrate run --rm flyway_karaoke
+      args:
+        chdir: "{{ project_dir }}/postgres"
+      register: migration_result
+      failed_when: false  # Don't fail the playbook, handle errors gracefully
+
+    - name: Display Karaoke migration output
+      debug:
+        var: migration_result.stdout_lines
+
+    - name: Display Karaoke migration errors (if any)
+      debug:
+        var: migration_result.stderr_lines
+      when: migration_result.rc != 0
+
+    - name: Fail if Karaoke migrations failed
+      fail:
+        msg: |
+          Karaoke migrations failed with exit code {{ migration_result.rc }}.
+          Review the output above for details.
+          To rollback: docker compose --profile migrate run --rm flyway_karaoke undo
+      when: migration_result.rc != 0
+
+    - name: Karaoke migrations completed successfully
+      debug:
+        msg: "✓ Karaoke database migrations completed successfully"
+      when: migration_result.rc == 0

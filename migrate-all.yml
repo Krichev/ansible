@@ -1,0 +1,12 @@
+---
+# Run both application migrations sequentially
+- import_playbook: migrate-challenger.yml
+
+- import_playbook: migrate-karaoke.yml
+
+- name: Display combined migration summary
+  hosts: db
+  tasks:
+    - name: All migrations completed
+      debug:
+        msg: "✓ All database migrations completed successfully"
